@@ -1,0 +1,56 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+:root {
+  --ink: #12191C;
+  --paper: #EDEEE7;
+  --pulse: #E4593F;
+  --vital: #7FA98A;
+  --graphite: #495057;
+  --ash: #B9B2A0;
+}
+
+body {
+  background-color: var(--ink);
+  color: #F3F4F1;
+  font-family: 'IBM Plex Sans', sans-serif;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: 'Spectral', serif;
+}
+
+.font-sans {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.font-mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Background pulse animation */
+@keyframes restingPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+}
+
+.animate-pulse-resting {
+  animation: restingPulse 4.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-resting,
+  .animate-ping,
+  .animate-pulse {
+    animation: none !important;
+  }
+}

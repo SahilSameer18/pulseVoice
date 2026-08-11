@@ -1,12 +1,14 @@
-
+import React from 'react';
+import { RouterProvider } from 'react-router-dom';
+import { CallProvider } from './context/CallContext';
+import router from './app.routes';
 
 function App() {
-
   return (
-    <>
-      <p className="bg-sky-800 rounded-full">It's me</p>
-    </>
-  )
+    <CallProvider>
+      <RouterProvider router={router} />
+    </CallProvider>
+  );
 }
 
-export default App
+export default App;

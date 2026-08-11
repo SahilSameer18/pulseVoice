@@ -12,8 +12,28 @@ export const useRecorder = () => {
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
     };
+  }, []);
+
+  // Pre-request microphone stream so recording starts instantly (0ms latency)
+  const prepareStream = useCallback(async () => {
+    if (streamRef.current && streamRef.current.active) {
+      return streamRef.current;
+    }
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Microphone access is not supported in this browser.');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      return stream;
+    } catch (err) {
+      console.error('[useRecorder] Failed to obtain microphone stream:', err);
+      setRecorderError(err.message || 'Permission denied or microphone unavailable.');
+      return null;
+    }
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -21,12 +41,8 @@ export const useRecorder = () => {
     audioChunksRef.current = [];
 
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Microphone access is not supported in this browser.');
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+      const stream = await prepareStream();
+      if (!stream) return;
 
       // Select best supported MIME type
       let mimeType = 'audio/webm;codecs=opus';
@@ -52,14 +68,15 @@ export const useRecorder = () => {
       };
 
       mediaRecorderRef.current = recorder;
-      recorder.start();
+      // Start recording with 100ms timeslice to ensure continuous chunk emission
+      recorder.start(100);
       setIsRecording(true);
     } catch (err) {
       console.error('[useRecorder] Failed to start recording:', err);
-      setRecorderError(err.message || 'Permission denied or microphone unavailable.');
+      setRecorderError(err.message || 'Could not start recording.');
       setIsRecording(false);
     }
-  }, []);
+  }, [prepareStream]);
 
   const stopRecording = useCallback(() => {
     return new Promise((resolve) => {
@@ -74,12 +91,6 @@ export const useRecorder = () => {
         const mimeType = recorder.mimeType || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         
-        // Stop audio tracks to release microphone hardware
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((track) => track.stop());
-          streamRef.current = null;
-        }
-
         setIsRecording(false);
         mediaRecorderRef.current = null;
 
@@ -94,6 +105,7 @@ export const useRecorder = () => {
 
   return {
     isRecording,
+    prepareStream,
     startRecording,
     stopRecording,
     recorderError

@@ -67,7 +67,7 @@ flowchart TD
 | **Backend Runtime** | Node.js + Express | REST health checks & WebSocket server |
 | **Speech-to-Text (STT)**| Groq Whisper Large v3 | High-accuracy voice transcription |
 | **Intake & Report LLM** | Groq Llama 3.3 70B | Forced JSON mode (`json_object`) with dual-level parsing fallbacks |
-| **Text-to-Speech (TTS)**| Web Speech API | Zero-latency in-browser audio synthesis |
+| **Text-to-Speech (TTS)**| Web Speech API | Async `onvoiceschanged` neural voice selector prioritizing `Microsoft Swara` / `Google हिंदी` (Hindi) and `Microsoft Jenny` / `Google US` (English) with graceful fallback to any `hi` / `en` voice |
 
 ---
 

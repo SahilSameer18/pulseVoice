@@ -71,8 +71,8 @@ export function registerCallHandlers(io, socket) {
         return;
       }
 
-      // Step 2: Speech-to-Text via Groq Whisper
-      const { text: userText, isEmpty } = await transcribeAudio(buffer, mimeType);
+      // Step 2: Speech-to-Text via Groq Whisper with session language bias
+      const { text: userText, isEmpty } = await transcribeAudio(buffer, mimeType, session.language);
 
       if (isEmpty) {
         console.warn(`[${socket.id}] STT returned empty transcript`);

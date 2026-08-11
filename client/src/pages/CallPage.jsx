@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCall, CALL_STATUS } from '../context/CallContext';
 import { useSocket } from '../hooks/useSocket';
@@ -23,16 +23,22 @@ export const CallPage = () => {
     clearError
   } = useCall();
 
-  const { emit, on, isConnected } = useSocket();
-  const { isRecording, startRecording, stopRecording, recorderError } = useRecorder();
+  const { emit, on } = useSocket();
+  const { isRecording, prepareStream, startRecording, stopRecording, recorderError } = useRecorder();
   const { speak, cancel, isSpeaking } = useSpeechSynthesis();
+  const hasStartedRef = useRef(false);
 
-  // Propagate recorder errors to error state
+  // Propagate recorder errors
   useEffect(() => {
     if (recorderError) {
       setError(recorderError);
     }
   }, [recorderError, setError]);
+
+  // Pre-warm microphone stream as soon as CallPage mounts
+  useEffect(() => {
+    prepareStream();
+  }, [prepareStream]);
 
   // Bind Socket Event Listeners
   useEffect(() => {
@@ -41,7 +47,9 @@ export const CallPage = () => {
       if (payload?.success && payload?.data?.text) {
         addMessage('ai', payload.data.text);
         setCallStatus(CALL_STATUS.SPEAKING);
-        speak(payload.data.text, selectedLanguage);
+        speak(payload.data.text, selectedLanguage, () => {
+          setCallStatus(CALL_STATUS.LISTENING);
+        });
       }
     });
 
@@ -53,7 +61,9 @@ export const CallPage = () => {
         if (text) {
           addMessage('ai', text);
           setCallStatus(CALL_STATUS.SPEAKING);
-          speak(text, selectedLanguage);
+          speak(text, selectedLanguage, () => {
+            setCallStatus(CALL_STATUS.LISTENING);
+          });
         }
       }
     });
@@ -61,7 +71,7 @@ export const CallPage = () => {
     // 3. turn:error -> failure handling (silence / STT / API error)
     const unbindError = on('turn:error', (payload) => {
       console.warn('[CallPage] Received turn:error:', payload);
-      setError(payload?.message || "Didn't catch that — try again.");
+      setError(payload?.message || "Didn't catch that — please speak clearly and try again.");
       setCallStatus(CALL_STATUS.LISTENING);
     });
 
@@ -83,40 +93,40 @@ export const CallPage = () => {
     };
   }, [on, addMessage, setCallStatus, setReport, setError, speak, cancel, navigate, selectedLanguage]);
 
-  // Auto-start call on mount if IDLE
+  // Auto-start call on mount strictly ONCE (prevents StrictMode duplicate emissions)
   useEffect(() => {
-    if (callStatus === CALL_STATUS.IDLE) {
+    if (callStatus === CALL_STATUS.IDLE && !hasStartedRef.current) {
+      hasStartedRef.current = true;
       setCallStatus(CALL_STATUS.CONNECTING);
       emit('call:start', { language: selectedLanguage });
     }
   }, [callStatus, setCallStatus, emit, selectedLanguage]);
 
-  // Handle Start Recording (Mouse down / Touch start)
-  const handleStartRecording = useCallback(async () => {
-    clearError();
-    cancel(); // Stop TTS if currently speaking
-    setCallStatus(CALL_STATUS.LISTENING);
-    await startRecording();
-  }, [clearError, cancel, setCallStatus, startRecording]);
-
-  // Handle Stop Recording (Mouse up / Touch end)
-  const handleStopRecording = useCallback(async () => {
-    const result = await stopRecording();
-    if (result && result.buffer) {
-      setCallStatus(CALL_STATUS.THINKING);
-      // Emit audio buffer + MIME type over socket
-      emit('turn:audio', {
-        buffer: result.buffer,
-        mimeType: result.mimeType
-      });
-    } else {
+  // Handle Toggle Recording (Click to Start / Click to Stop)
+  const handleToggleRecording = useCallback(async () => {
+    if (!isRecording) {
+      clearError();
+      cancel(); // Interrupt TTS if currently speaking
       setCallStatus(CALL_STATUS.LISTENING);
+      await startRecording();
+    } else {
+      const result = await stopRecording();
+      if (result && result.buffer) {
+        setCallStatus(CALL_STATUS.THINKING);
+        emit('turn:audio', {
+          buffer: result.buffer,
+          mimeType: result.mimeType
+        });
+      } else {
+        setCallStatus(CALL_STATUS.LISTENING);
+      }
     }
-  }, [stopRecording, setCallStatus, emit]);
+  }, [isRecording, clearError, cancel, setCallStatus, startRecording, stopRecording, emit]);
 
   // Handle Start Call manually
   const handleStartCall = useCallback(() => {
     clearError();
+    hasStartedRef.current = true;
     setCallStatus(CALL_STATUS.CONNECTING);
     emit('call:start', { language: selectedLanguage });
   }, [clearError, setCallStatus, emit, selectedLanguage]);
@@ -129,7 +139,7 @@ export const CallPage = () => {
   }, [cancel, setCallStatus, emit]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-6 space-[#12191C]">
+    <div className="w-full max-w-4xl mx-auto px-4 py-6">
       {/* Top Banner / Error Display */}
       <ErrorAlert error={error} onDismiss={clearError} />
 
@@ -150,8 +160,7 @@ export const CallPage = () => {
           onStartCall={handleStartCall}
           onEndCall={handleEndCall}
           isRecording={isRecording}
-          onStartRecording={handleStartRecording}
-          onStopRecording={handleStopRecording}
+          onToggleRecording={handleToggleRecording}
           isSpeaking={isSpeaking}
         />
       </div>

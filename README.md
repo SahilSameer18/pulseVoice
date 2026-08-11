@@ -12,7 +12,7 @@
 
 ---
 
-PulseVoice is a voice-based AI health-screening call web application. Users conduct a live, adaptive health intake conversation with an AI agent (**supporting English and Hindi**). Upon call completion, the app generates a structured clinical health report summarizing the patient's primary complaint, symptoms, duration, severity, and notable highlights for physician review.
+PulseVoice is a voice-based AI health-screening call web application. Users conduct a live, adaptive health intake conversation with an AI agent (**supporting English, Hindi, and dynamic mid-call language switching**). Upon call completion, the app generates a structured clinical health report summarizing the patient's primary complaint, symptoms, duration, severity, and notable highlights for physician review.
 
 ---
 
@@ -22,8 +22,8 @@ PulseVoice is a voice-based AI health-screening call web application. Users cond
 flowchart TD
     subgraph Client["React 19 Client (Frontend)"]
         User(["👤 Patient"])
-        Mic["🎤 MediaRecorder (Audio Buffer)"]
-        TTS["🔊 Web Speech API (TTS)"]
+        Mic["🎤 MediaRecorder (Pre-warmed 0ms Buffer)"]
+        TTS["🔊 Web Speech API (Neural Voice Selector)"]
         UI["💻 Clinical Dusk UI (Spectral & IBM Plex)"]
     end
 
@@ -39,7 +39,7 @@ flowchart TD
         LlamaReport["📄 Llama 3.3 70B (Report Synthesis)"]
     end
 
-    User -->|"Push-to-Talk"| Mic
+    User -->|"Click-to-Toggle / Hold Mic"| Mic
     Mic -->|"turn:audio (Buffer + MIME)"| Socket
     Socket --> ErrorWrap
     ErrorWrap --> Session
@@ -61,13 +61,13 @@ flowchart TD
 | Layer | Tech / Tool | Description |
 |---|---|---|
 | **Frontend Framework** | React 19 + Vite | High-performance SPA frontend |
-| **Styling & UI** | Tailwind CSS v4 | "Clinical Dusk" theme with custom tokens |
+| **Styling & UI** | Tailwind CSS v4 | "Clinical Dusk" theme with custom design tokens |
 | **Typography** | Google Fonts | `Spectral` (AI Voice & Brand Serif), `IBM Plex Sans` (UI Body), `IBM Plex Mono` (Report Fields) |
-| **Real-Time Transport** | Socket.IO | Push-to-talk bidirectional event communication |
+| **Real-Time Transport** | Socket.IO | Bidirectional event communication with strict session tracking |
 | **Backend Runtime** | Node.js + Express | REST health checks & WebSocket server |
-| **Speech-to-Text (STT)**| Groq Whisper Large v3 | High-accuracy voice transcription |
-| **Intake & Report LLM** | Groq Llama 3.3 70B | Forced JSON mode (`json_object`) with dual-level parsing fallbacks |
-| **Text-to-Speech (TTS)**| Web Speech API | Async `onvoiceschanged` neural voice selector prioritizing `Microsoft Swara` / `Google हिंदी` (Hindi) and `Microsoft Jenny` / `Google US` (English) with graceful fallback to any `hi` / `en` voice |
+| **Speech-to-Text (STT)**| Groq Whisper Large v3 | High-accuracy voice transcription with Devanagari & English vocabulary biasing |
+| **Intake & Report LLM** | Groq Llama 3.3 70B | Forced JSON mode (`json_object`) with dual-level parsing fallbacks & dynamic language switching |
+| **Text-to-Speech (TTS)**| Web Speech API | Async `onvoiceschanged` neural voice selector prioritizing `Microsoft Swara` / `Google हिंदी` (Hindi) and `Microsoft Jenny` / `Google US` (English) |
 
 ---
 
@@ -86,7 +86,7 @@ pulseVoice/
 │   │   │   └── socket.js               # Socket.IO client instance
 │   │   ├── components/
 │   │   │   ├── call/
-│   │   │   │   ├── CallControls.jsx    # Push-to-talk mic button & action panel
+│   │   │   │   ├── CallControls.jsx    # Click-to-toggle mic button & action panel
 │   │   │   │   ├── AudioVisualizer.jsx # Breathing orb & Pulse Line SVG motif
 │   │   │   │   └── TranscriptView.jsx  # Chat captions (Spectral serif for AI text)
 │   │   │   ├── common/
@@ -101,13 +101,13 @@ pulseVoice/
 │   │   ├── context/
 │   │   │   └── CallContext.jsx         # React global call state provider
 │   │   ├── hooks/
-│   │   │   ├── useRecorder.js          # MediaRecorder audio capture hook
+│   │   │   ├── useRecorder.js          # Pre-warmed MediaRecorder audio capture hook
 │   │   │   ├── useSpeechSynthesis.js  # Web Speech API TTS speaker hook
 │   │   │   └── useSocket.js            # Socket event binding hook
 │   │   ├── pages/
 │   │   │   ├── HomePage.jsx            # Hero landing page with animated pulse line
 │   │   │   ├── CallPage.jsx            # Screening call interface page
-│   │   │   └── ReportPage.jsx          # Health summary page with session rhythm strip
+│   │   │   └── ReportPage.jsx          # Health summary page with session rhythm strip & Cancel CTA
 │   │   ├── app.layout.jsx              # Main App layout wrapper
 │   │   ├── app.routes.jsx              # React Router definitions
 │   │   ├── App.jsx                     # Root React component
@@ -120,7 +120,7 @@ pulseVoice/
     │   ├── middlewares/
     │   │   └── errorHandler.js       # wrapSocketHandler async error wrapper
     │   ├── prompts/
-    │   │   ├── systemPrompt.js       # Dynamic AI intake persona prompt
+    │   │   ├── systemPrompt.js       # Dynamic AI intake persona prompt with language adaptation
     │   │   └── reportPrompt.js       # Report synthesis JSON prompt
     │   ├── services/
     │   │   ├── groqClient.js         # Shared Groq SDK client
@@ -193,16 +193,28 @@ npm run dev
 
 ---
 
+### Step 4: Testing & Verification Suites
+You can run automated backend integration tests:
+```bash
+cd server
+node testGroq.js     # Validates Groq STT, Llama Chat & Report JSON generation
+node testPhase6.js   # Validates edge case handling (silence, empty audio, brief calls)
+```
+
+---
+
 ## 🛡️ Failure Handling & Safeguards
 
 PulseVoice incorporates defensive architecture against runtime failures:
 
-1. **Silence & Small Audio Filter**: Audio buffers under 3,000 bytes (~200ms) are caught locally before hitting Groq API: *"Audio too short — likely silence or noise. Please speak clearly and try again."*
-2. **Unclear Speech Recovery**: If Whisper returns an empty transcript, the system prompts the user to repeat without dropping the call.
-3. **Dual-Shield LLM JSON Fallback**: `groqChat.js` and `groqReport.js` use `response_format: { type: "json_object" }` combined with `parseLlamaJson` regex fallbacks. If parsing fails, raw text is used gracefully without UI crashes.
-4. **Brief Call Handling**: Calls ended after 0-1 turns are detected via `isCallSubstantive(messages)`. Generates a graceful limited report stating minimal info was collected without inventing fake data.
-5. **Non-Diagnostic Framing**: Highlights are framed as *"Notable Highlights for Physician Review"* with non-diagnostic disclaimers.
-6. **Session Memory Cleanup**: Socket sessions are destroyed on `call:end` and `disconnect` events to prevent backend memory leaks.
+1. **Pre-warmed Zero-Latency Mic**: Microphone permissions are pre-requested on mount, eliminating hardware audio lag when recording starts.
+2. **Dynamic Language Switching**: Patients can switch between English and Hindi mid-call; the AI immediately adapts its spoken language on that turn.
+3. **Silence & Small Audio Filter**: Audio buffers under 3,000 bytes (~200ms) are caught locally before hitting Groq API: *"Audio too short — likely silence or noise. Please speak clearly and try again."*
+4. **Unclear Speech Recovery**: If Whisper returns an empty transcript, the system prompts the user to repeat without dropping the call.
+5. **Dual-Shield LLM JSON Fallback**: `groqChat.js` and `groqReport.js` use `response_format: { type: "json_object" }` combined with `parseLlamaJson` regex fallbacks. If parsing fails, raw text is used gracefully without UI crashes.
+6. **Brief Call Handling**: Calls ended after 0-1 turns are detected via `isCallSubstantive(messages)`. Generates a graceful limited report stating minimal info was collected without inventing fake data.
+7. **Non-Diagnostic Framing**: Highlights are framed as *"Notable Highlights for Physician Review"* with non-diagnostic disclaimers.
+8. **Session Memory Cleanup**: Socket sessions are destroyed on `call:end` and `disconnect` events to prevent backend memory leaks.
 
 ---
 
@@ -211,3 +223,5 @@ PulseVoice incorporates defensive architecture against runtime failures:
 **Sahil Sameer**  
 - GitHub: [@SahilSameer18](https://github.com/SahilSameer18)  
 - Project Repository: [https://github.com/SahilSameer18/pulseVoice](https://github.com/SahilSameer18/pulseVoice)
+
+

@@ -1,6 +1,6 @@
-import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useCall, CALL_STATUS } from '../../context/CallContext';
+import { useCall } from '../../context/CallContext';
+import { CALL_STATUS } from '../../constants/callStatus';
 import { SUPPORTED_LANGUAGES } from '../../constants/languages';
 
 export const Header = () => {

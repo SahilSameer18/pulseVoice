@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 
 export const TranscriptView = ({ messages = [] }) => {
   const bottomRef = useRef(null);
@@ -20,11 +20,12 @@ export const TranscriptView = ({ messages = [] }) => {
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4 max-h-[380px] overflow-y-auto px-2 py-4 scrollbar-thin scrollbar-thumb-slate-800">
-      {messages.map((msg) => {
+      {messages.map((msg, index) => {
         const isAi = msg.sender === 'ai' || msg.role === 'assistant';
+        const key = msg.id || `${msg.timestamp || 'msg'}-${index}`;
         return (
           <div
-            key={msg.id || `${msg.timestamp}-${Math.random()}`}
+            key={key}
             className={`flex flex-col ${isAi ? 'items-start' : 'items-end'} animate-fadeIn`}
           >
             {/* Sender Label */}

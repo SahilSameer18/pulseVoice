@@ -1,6 +1,7 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCall, CALL_STATUS } from '../context/CallContext';
+import { useCall } from '../context/CallContext';
+import { CALL_STATUS } from '../constants/callStatus';
 import { useSocket } from '../hooks/useSocket';
 import { useRecorder } from '../hooks/useRecorder';
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
@@ -85,11 +86,19 @@ export const CallPage = () => {
       }
     });
 
+    // 5. call:report_error -> error during report generation
+    const unbindReportError = on('call:report_error', (payload) => {
+      console.error('[CallPage] Received call:report_error:', payload);
+      setError(payload?.message || 'Failed to generate intake report. Please try again.');
+      setCallStatus(CALL_STATUS.LISTENING);
+    });
+
     return () => {
       unbindGreeting();
       unbindResponse();
       unbindError();
       unbindReport();
+      unbindReportError();
     };
   }, [on, addMessage, setCallStatus, setReport, setError, speak, cancel, navigate, selectedLanguage]);
 
@@ -131,12 +140,15 @@ export const CallPage = () => {
     emit('call:start', { language: selectedLanguage });
   }, [clearError, setCallStatus, emit, selectedLanguage]);
 
-  // Handle End Call manually
-  const handleEndCall = useCallback(() => {
+  // Handle End Call manually (stops active recording first)
+  const handleEndCall = useCallback(async () => {
     cancel();
+    if (isRecording) {
+      await stopRecording();
+    }
     setCallStatus(CALL_STATUS.THINKING);
     emit('call:end');
-  }, [cancel, setCallStatus, emit]);
+  }, [cancel, isRecording, stopRecording, setCallStatus, emit]);
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-6">

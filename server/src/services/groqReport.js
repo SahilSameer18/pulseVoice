@@ -5,8 +5,7 @@ import { isCallSubstantive } from '../utils/fieldExtractor.js';
 const MODEL = 'llama-3.3-70b-versatile';
 
 /**
- * Graceful fallback report for brief/incomplete calls.
- * Returns a valid report schema without calling Groq.
+ * Graceful fallback report for zero-turn calls (where no user audio was captured).
  */
 function buildFallbackReport(messages) {
   return {
@@ -17,7 +16,7 @@ function buildFallbackReport(messages) {
     severity: null,
     flags: [],
     summary:
-      'The call was too brief to collect meaningful intake information. Only limited information was captured during this session.',
+      'The call ended before any patient information was spoken. No intake data was captured during this session.',
     isSubstantive: false
   };
 }
@@ -33,7 +32,7 @@ function parseLlamaJson(rawText) {
 /**
  * Schema-safe default report for when JSON parse fails.
  */
-function buildDefaultReport(rawText) {
+function buildDefaultReport(rawText, isSubstantive = true) {
   return {
     name: null,
     concern: null,
@@ -42,40 +41,43 @@ function buildDefaultReport(rawText) {
     severity: null,
     flags: [],
     summary: rawText.replace(/```json\s*|```/g, '').trim(),
-    isSubstantive: true
+    isSubstantive
   };
 }
 
 /**
  * Generates a structured health intake report from the full conversation transcript.
+ * Preserves collected data even if the call was brief.
  * @param {Array} messages - Full conversation history [{ role, content }]
  * @returns {Object} - Structured report object
  */
 export async function generateReport(messages = []) {
-  // Skip Groq call for very brief calls — return graceful limited report
-  if (!isCallSubstantive(messages)) {
-    console.log('[groqReport] Call not substantive — returning fallback report');
+  const userMessages = messages.filter((m) => m.role === 'user' || m.sender === 'user');
+
+  // If no user turns occurred at all, return empty fallback report without calling API
+  if (userMessages.length === 0) {
+    console.log('[groqReport] 0 user messages — returning empty fallback report');
     return buildFallbackReport(messages);
   }
 
+  const substantiveCall = isCallSubstantive(messages);
   const reportPrompt = buildReportPrompt(messages);
 
-  const response = await groq.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: 'You are a medical scribe. Always respond with only valid JSON.' },
-      { role: 'user', content: reportPrompt }
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
-    max_tokens: 1024
-  });
-
-  const rawText = response.choices[0]?.message?.content || '';
-
   try {
+    const response = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: 'You are a medical scribe. Always respond with only valid JSON.' },
+        { role: 'user', content: reportPrompt }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+      max_tokens: 1024
+    });
+
+    const rawText = response.choices[0]?.message?.content || '';
     const parsed = parseLlamaJson(rawText);
-    // Fill in any missing fields with safe defaults
+
     return {
       name: parsed.name || null,
       concern: parsed.concern || null,
@@ -83,11 +85,11 @@ export async function generateReport(messages = []) {
       duration: parsed.duration || null,
       severity: parsed.severity || null,
       flags: Array.isArray(parsed.flags) ? parsed.flags : [],
-      summary: parsed.summary || 'No summary available.',
-      isSubstantive: parsed.isSubstantive !== false
+      summary: parsed.summary || (substantiveCall ? 'No summary available.' : 'Brief call intake captured.'),
+      isSubstantive: substantiveCall && parsed.isSubstantive !== false
     };
-  } catch {
-    console.error('[groqReport] JSON parse failed — using raw text as summary fallback');
-    return buildDefaultReport(rawText);
+  } catch (err) {
+    console.error('[groqReport] Failed to generate LLM report:', err?.message || err);
+    return buildDefaultReport('Intake information was partially collected during this session.', substantiveCall);
   }
 }

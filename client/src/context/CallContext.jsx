@@ -1,14 +1,8 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { DEFAULT_LANGUAGE } from '../constants/languages';
+import { CALL_STATUS } from '../constants/callStatus';
 
-export const CALL_STATUS = {
-  IDLE: 'IDLE',
-  CONNECTING: 'CONNECTING',
-  LISTENING: 'LISTENING',
-  THINKING: 'THINKING',
-  SPEAKING: 'SPEAKING',
-  ENDED: 'ENDED'
-};
+export { CALL_STATUS };
 
 const CallContext = createContext(null);
 

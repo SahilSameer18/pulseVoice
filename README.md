@@ -22,8 +22,8 @@ PulseVoice is a voice-based AI health-screening call web application. Users cond
 flowchart TD
     subgraph Client["React 19 Client (Frontend)"]
         User(["👤 Patient"])
-        Mic["🎤 MediaRecorder (Pre-warmed 0ms Buffer)"]
-        TTS["🔊 Web Speech API (Neural Voice Selector)"]
+        Mic["🎤 MediaRecorder (Pre-warmed Audio Buffer)"]
+        TTS["🔊 Browser Web Speech API (Voice Selector)"]
         UI["💻 Clinical Dusk UI (Spectral & IBM Plex)"]
     end
 
@@ -34,7 +34,7 @@ flowchart TD
     end
 
     subgraph GroqCloud["Groq Cloud AI Services"]
-        Whisper["🎙️ Whisper Large v3 (Turbo STT)"]
+        Whisper["🎙️ Whisper Large v3 (STT)"]
         LlamaChat["💬 Llama 3.3 70B (Intake Conversation)"]
         LlamaReport["📄 Llama 3.3 70B (Report Synthesis)"]
     end
@@ -67,7 +67,7 @@ flowchart TD
 | **Backend Runtime** | Node.js + Express | REST health checks & WebSocket server |
 | **Speech-to-Text (STT)**| Groq Whisper Large v3 | High-accuracy voice transcription with Devanagari & English vocabulary biasing |
 | **Intake & Report LLM** | Groq Llama 3.3 70B | Forced JSON mode (`json_object`) with dual-level parsing fallbacks & dynamic language switching |
-| **Text-to-Speech (TTS)**| Web Speech API | Async `onvoiceschanged` neural voice selector prioritizing `Microsoft Swara` / `Google हिंदी` (Hindi) and `Microsoft Jenny` / `Google US` (English) |
+| **Text-to-Speech (TTS)**| Web Speech API | Browser Web Speech API with async `onvoiceschanged` selector prioritizing native Hindi (`Swara`/`Google हिंदी`) and English (`Jenny`/`Google US`) voices |
 
 ---
 
@@ -97,6 +97,7 @@ pulseVoice/
 │   │   │       ├── SymptomsList.jsx    # Primary complaint & symptom chips
 │   │   │       └── RiskFlags.jsx       # Highlights for physician review (non-diagnostic)
 │   │   ├── constants/
+│   │   │   ├── callStatus.js           # CALL_STATUS enum constants
 │   │   │   └── languages.js            # English, Hindi & Auto-Detect config
 │   │   ├── context/
 │   │   │   └── CallContext.jsx         # React global call state provider
@@ -135,8 +136,8 @@ pulseVoice/
     │   └── utils/
     │       ├── audioHelper.js        # Silence detection (3KB threshold)
     │       └── fieldExtractor.js     # Unfilled fields & substantive call check
-    ├── testGroq.js                     # Phase 3 standalone test suite
-    ├── testPhase6.js                   # Phase 6 edge case test suite
+    ├── testGroq.js                     # Live Groq API integration test suite
+    ├── testPhase6.js                   # Local edge-case unit test suite
     ├── .env.example
     ├── package.json
     └── server.js                       # Express + Socket.IO server entry point
@@ -194,12 +195,9 @@ npm run dev
 ---
 
 ### Step 4: Testing & Verification Suites
-You can run automated backend integration tests:
-```bash
-cd server
-node testGroq.js     # Validates Groq STT, Llama Chat & Report JSON generation
-node testPhase6.js   # Validates edge case handling (silence, empty audio, brief calls)
-```
+The repository includes two separate test suites:
+- **Local Edge-Case Test (`node testPhase6.js`)**: Runs locally without requiring external API calls. Tests audio silence detection (<3KB), brief call report fallbacks, and socket session memory cleanup.
+- **Live Groq Integration Test (`node testGroq.js`)**: Requires a valid `GROQ_API_KEY` in `.env`. Verifies live Whisper STT audio transcription, Llama 3.3 structured chat responses, and clinical report JSON synthesis.
 
 ---
 
@@ -207,7 +205,7 @@ node testPhase6.js   # Validates edge case handling (silence, empty audio, brief
 
 PulseVoice incorporates defensive architecture against runtime failures:
 
-1. **Pre-warmed Zero-Latency Mic**: Microphone permissions are pre-requested on mount, eliminating hardware audio lag when recording starts.
+1. **Pre-warmed Low-Latency Mic**: Microphone permissions are pre-requested on mount, eliminating hardware audio warmup delay when recording starts.
 2. **Dynamic Language Switching**: Patients can switch between English and Hindi mid-call; the AI immediately adapts its spoken language on that turn.
 3. **Silence & Small Audio Filter**: Audio buffers under 3,000 bytes (~200ms) are caught locally before hitting Groq API: *"Audio too short — likely silence or noise. Please speak clearly and try again."*
 4. **Unclear Speech Recovery**: If Whisper returns an empty transcript, the system prompts the user to repeat without dropping the call.
@@ -223,5 +221,3 @@ PulseVoice incorporates defensive architecture against runtime failures:
 **Sahil Sameer**  
 - GitHub: [@SahilSameer18](https://github.com/SahilSameer18)  
 - Project Repository: [https://github.com/SahilSameer18/pulseVoice](https://github.com/SahilSameer18/pulseVoice)
-
-

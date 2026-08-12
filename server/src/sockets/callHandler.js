@@ -126,16 +126,27 @@ export function registerCallHandlers(io, socket) {
 
       const messages = session?.messages || [];
 
-      const report = await generateReport(messages);
+      try {
+        const report = await generateReport(messages);
 
-      // Clean up session
-      deleteSession(socket.id);
+        // Clean up session
+        deleteSession(socket.id);
 
-      socket.emit('call:report', {
-        success: true,
-        message: 'Report generated',
-        data: { report }
-      });
+        socket.emit('call:report', {
+          success: true,
+          message: 'Report generated',
+          data: { report }
+        });
+      } catch (err) {
+        console.error(`[${socket.id}] Report generation error:`, err);
+        deleteSession(socket.id);
+
+        socket.emit('call:report_error', {
+          success: false,
+          message: 'Failed to generate summary report. Please try again.',
+          errors: [err?.message || 'report_generation_failed']
+        });
+      }
     })
   );
 
@@ -147,5 +158,4 @@ export function registerCallHandlers(io, socket) {
     deleteSession(socket.id);
   });
 }
-
 

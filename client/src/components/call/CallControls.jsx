@@ -1,5 +1,4 @@
-import React from 'react';
-import { CALL_STATUS } from '../../context/CallContext';
+import { CALL_STATUS } from '../../constants/callStatus';
 
 export const CallControls = ({
   callStatus,

@@ -1,6 +1,6 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCall, CALL_STATUS } from '../context/CallContext';
+import { useCall } from '../context/CallContext';
+import { CALL_STATUS } from '../constants/callStatus';
 import ReportCard from '../components/report/ReportCard';
 
 export const ReportPage = () => {
@@ -88,3 +88,4 @@ export const ReportPage = () => {
 };
 
 export default ReportPage;
+

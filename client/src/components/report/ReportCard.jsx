@@ -1,4 +1,3 @@
-import React from 'react';
 import SymptomsList from './SymptomsList';
 import RiskFlags from './RiskFlags';
 

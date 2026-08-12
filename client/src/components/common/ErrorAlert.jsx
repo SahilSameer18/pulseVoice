@@ -1,4 +1,3 @@
-import React from 'react';
 
 export const ErrorAlert = ({ error, onDismiss }) => {
   if (!error) return null;
@@ -33,5 +32,3 @@ export const ErrorAlert = ({ error, onDismiss }) => {
 };
 
 export default ErrorAlert;
-
-

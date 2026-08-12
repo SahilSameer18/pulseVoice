@@ -4,10 +4,8 @@
  *
  * Tests:
  *  1. Audio Silence Check (Buffer < 3KB)
- *  2. Empty STT Transcript Handling
- *  3. LLM JSON Parsing Fallback Safety
- *  4. Early Call Termination (0-1 exchanges fallback report)
- *  5. In-Memory Session Cleanup on Disconnect
+ *  2. Early Call Termination (0-1 exchanges report generation)
+ *  3. In-Memory Session Cleanup on Disconnect
  */
 
 import dotenv from 'dotenv';
@@ -23,6 +21,9 @@ const DIVIDER = '\n' + '─'.repeat(60) + '\n';
 async function runEdgeCaseTests() {
   console.log('🧪 PulseVoice — Phase 6 Edge Case & Failure Handling Tests\n');
 
+  let passed = 0;
+  let failed = 0;
+
   // ─────────────────────────────────────────────────────────────
   // EDGE CASE 1: Silence & Small Audio Buffer
   // ─────────────────────────────────────────────────────────────
@@ -33,8 +34,10 @@ async function runEdgeCaseTests() {
   if (!validation.valid && validation.reason === 'silence') {
     console.log('✅ Silence correctly detected:');
     console.log('   Message:', validation.message);
+    passed++;
   } else {
     console.error('❌ EDGE CASE 1 FAILED: Expected silence detection', validation);
+    failed++;
   }
 
   console.log(DIVIDER);
@@ -52,12 +55,14 @@ async function runEdgeCaseTests() {
   console.log(`   isCallSubstantive(1 turn) = ${isSubstantive}`);
 
   const report = await generateReport(briefMessages);
-  if (!report.isSubstantive && report.summary.includes('brief')) {
+  if (report && report.isSubstantive === false) {
     console.log('✅ Early termination handled gracefully:');
     console.log('   isSubstantive:', report.isSubstantive);
     console.log('   summary:', report.summary);
+    passed++;
   } else {
     console.error('❌ EDGE CASE 2 FAILED:', report);
+    failed++;
   }
 
   console.log(DIVIDER);
@@ -78,11 +83,22 @@ async function runEdgeCaseTests() {
 
   if (beforeDelete && afterDelete === null) {
     console.log('✅ Session cleanup verified — no memory leak.');
+    passed++;
   } else {
     console.error('❌ EDGE CASE 3 FAILED');
+    failed++;
   }
 
-  console.log('\n✅ Phase 6 Edge Case Verification Complete!\n');
+  console.log(DIVIDER);
+  console.log(`📊 Test Summary: ${passed} Passed, ${failed} Failed`);
+
+  if (failed > 0) {
+    console.error('❌ Test suite failed!');
+    process.exit(1);
+  } else {
+    console.log('✅ All Phase 6 Edge Case Tests Passed Successfully!\n');
+    process.exit(0);
+  }
 }
 
 runEdgeCaseTests();
